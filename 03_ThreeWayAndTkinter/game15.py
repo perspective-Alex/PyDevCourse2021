@@ -3,6 +3,13 @@ import random as rnd
 import tkinter as tk
 from tkinter import messagebox
 
+def disorder_rate(values):
+    dr = 0
+    for i in range(len(values)-1):
+        if values[i] > values[i+1]:
+            dr += 1
+    return dr
+
 class GameGrid:
     def __init__(self, w, h):
         self.w = w
@@ -13,7 +20,19 @@ class GameGrid:
         #self.blank_coord = (3, 2)
 
     def shuffle_buttons(self):
+        # avoid knowingly incorrect situations when user cannot win
+        # they are tracked via disorder rate which has to be even
         rnd.shuffle(self.buttons)
+        button_numbers = list(map(lambda b: int(b.cget("text")),
+                            self.buttons))
+        dr = disorder_rate(button_numbers)
+        while dr % 2 == 1:
+            rnd.shuffle(self.buttons)
+            button_numbers = list(map(lambda b: int(b.cget("text")),
+                                self.buttons))
+            dr = disorder_rate(button_numbers)
+        print(f"Disorder rate of the game plates == {dr}.\n"
+        "Cases with odd value are avoided because they are unwinnable")
 
     def initialize_game_buttons(self, window):
         self.buttons = []
