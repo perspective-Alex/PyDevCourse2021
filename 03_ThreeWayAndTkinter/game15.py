@@ -1,13 +1,17 @@
+"""This is a module representing game 15 (15 puzzle) game"""
 import random as rnd
 
 import tkinter as tk
 from tkinter import messagebox
 
+
 def disorder_rate(values):
+    """i.e. Inversion count calculation"""
     dr = 0
     for i in range(len(values)-1):
-        if values[i] > values[i+1]:
-            dr += 1
+        for j in range(i+1,len(values)):
+            if values[i] > values[j]:
+                dr += 1
     return dr
 
 class GameGrid:
@@ -20,19 +24,14 @@ class GameGrid:
         #self.blank_coord = (3, 2)
 
     def shuffle_buttons(self):
-        # avoid knowingly incorrect situations when user cannot win
-        # they are tracked via disorder rate which has to be even
         rnd.shuffle(self.buttons)
-        button_numbers = list(map(lambda b: int(b.cget("text")),
-                            self.buttons))
-        dr = disorder_rate(button_numbers)
-        while dr % 2 == 1:
+        reconstruction_required = False
+        while not self.is_solveable():
+            print("Reconstructing game grid to avoid unwinnable case...")
+            reconstruction_required = True
             rnd.shuffle(self.buttons)
-            button_numbers = list(map(lambda b: int(b.cget("text")),
-                                self.buttons))
-            dr = disorder_rate(button_numbers)
-        print(f"Disorder rate of the game plates == {dr}.\n"
-        "Cases with odd value are avoided because they are unwinnable")
+        if reconstruction_required:
+            print("Done.")
 
     def initialize_game_buttons(self, window):
         self.buttons = []
@@ -56,6 +55,19 @@ class GameGrid:
                 if self.blank_coord != (i,j):
                     self.buttons[bi].grid(row=i+1, column=j, sticky="WESN")
                     bi += 1
+
+    def is_solveable(self):
+        """Method to check solveability of the game, i.e. inversion count
+            
+        Knowingly unsolveable number grid is identified by the following rule:
+        (assume ir = <index_of_a_row_where_the_gap_is_positioned>)
+        (disorder_rate(grid_numbers) + ir) % 2 == 1
+        """
+        button_numbers = list(map(lambda b: int(b.cget("text")),
+                            self.buttons))
+        dr = disorder_rate(button_numbers);
+        ir = self.blank_coord[0] + 1; # indexing of the row starts with 1
+        return (dr + ir) % 2 == 0
                     
 
 def playstep(game_grid, button):
@@ -73,8 +85,8 @@ def quit_game(game_state):
     game_state["over"] = True
 
 def restart_game(gg, game_state):
-    gg.shuffle_buttons()
     gg.blank_coord = (rnd.randint(0,gg.h-1), rnd.randint(0,gg.w-1))
+    gg.shuffle_buttons()
     game_state["restart"] = True
 
 def check_win_condition(gg):
@@ -92,7 +104,7 @@ def check_win_condition(gg):
 def main():
     window = tk.Tk()
     window.title("Game 15")
-    window.geometry("+500+500")
+    window.geometry("+500+300")
 
     w,h = 4,4
     gg = GameGrid(w,h)
