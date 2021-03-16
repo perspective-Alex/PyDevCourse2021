@@ -17,73 +17,64 @@ class Cursor(tk.Label):
             CursorMode.INSERT: 2,
             CursorMode.COMMAND: width
         }
-
-    def write(self, event):
-        if event.char != "" and self.mode == CursorMode.INSERT:
-            self.master.textvariable.set(
-                self.master.textvariable.get() + event.char)
+        self.char_width = self.width[CursorMode.COMMAND]
 
     def bind_events(self):
+        self.bind_movements()
+
+    def bind_movements(self):
         self.bind_movement_left()
         self.bind_movement_right()
-        self.bind_mode_switching_to_INSERT_or_writing()
-        self.bind_mode_switching_to_COMMAND()
-        self.bind_writing()
-        self.bind_symbol_deletion()
+        self.bind_Home_End_movement()
     
     def bind_movement_left(self):
         def move_left(arg):
             new_x = int(self.place_info()['x']) - \
                 self.width[CursorMode.COMMAND]
             if new_x >= 0:
+                if self.mode == CursorMode.COMMAND:
+                    text = self.master.textvariable.get()
+                    symb_i = new_x // self.char_width
+                    self.configure(text=text[symb_i])
                 self.place_configure(x=new_x)
         self.bind("<Left>", move_left) 
 
     def bind_movement_right(self):
         def move_right(arg):
-            new_x = int(self.place_info()['x']) + \
-                self.width[CursorMode.COMMAND]
-            if self.master.winfo_width() > \
-                    (new_x + self.width[CursorMode.COMMAND]):
-                self.place_configure(x=new_x)
+            text = self.master.textvariable.get()
+            cur_x = int(self.place_info()['x'])
+            if text != '' and cur_x < len(text)*self.char_width:
+                new_x = cur_x + \
+                    self.width[CursorMode.COMMAND]
+                if self.master.winfo_width() > \
+                    (new_x + (self.width[self.mode] \
+                        if self.mode == CursorMode.COMMAND else 0)):
+                    if self.mode == CursorMode.COMMAND:
+                        symb_i = new_x // self.char_width
+                        self.configure(text=text[symb_i])
+                    self.place_configure(x=new_x)
         self.bind("<Right>", move_right) 
 
-    def bind_mode_switching_to_INSERT_or_writing(self):
-        def change_mode_or_write(arg):
-            if self.mode == CursorMode.COMMAND:
-                self.mode = CursorMode.INSERT
-                self.place_configure(width=self.width[CursorMode.INSERT])
-            else:
-                self.write(arg)
-        self.bind("i", change_mode_or_write, add=True)
-
-    def bind_mode_switching_to_COMMAND(self):
-        def change_mode_to_COMMAND(arg):
-            if self.mode == CursorMode.INSERT:
-                self.mode = CursorMode.COMMAND
-                self.place_configure(width=self.width[CursorMode.COMMAND])
-        self.bind("<Key-Escape>", change_mode_to_COMMAND)
-
-    def bind_writing(self):
-        self.bind("<Any-KeyPress>", self.write, add=True)
-
-    def bind_symbol_deletion(self):
-        def del_previous_symbol(arg):
-            symb_i = int(self.place_info()['x']) // \
-                self.width[CursorMode.COMMAND] 
-            if symb_i > 0:
-                text = self.master.textvariable.get()
-                self.master.textvariable.set(text[:symb_i-1]+text[symb_i:])
-                self.event_generate("<Left>")
-        def del_next_symbol(arg):
-            symb_i = int(self.place_info()['x']) // \
-                self.width[CursorMode.COMMAND] 
+    def bind_Home_End_movement(self):
+        def move_end(arg):
             text = self.master.textvariable.get()
-            if symb_i < len(text):
-                self.master.textvariable.set(text[:symb_i]+text[symb_i+1:])
+            if self.mode == CursorMode.INSERT:
+                new_x = self.char_width * len(text)
+            else:
+                new_x = 0 if len(text) == 0 else \
+                    self.char_width * (len(text)-1)
+                symb_i = new_x // self.char_width
+                self.configure(text=text[symb_i])
+            self.place_configure(x=new_x)
+        def move_home(arg):
+            self.place_configure(x=0)
+            if self.mode == CursorMode.COMMAND:
+                text = self.master.textvariable.get()
+                self.configure(text=text[0])
 
-        self.bind("<BackSpace>", del_previous_symbol, add=False)
-        self.bind("<Delete>", del_next_symbol, add=False)
+        self.bind("<End>", move_end) 
+        self.bind("<Home>", move_home) 
+
 
 class InputLabel(tk.Label):
     """tk.Entry behaviour imitation class"""
@@ -92,29 +83,107 @@ class InputLabel(tk.Label):
                         highlightthickness=highlightthickness,
                         padx=0, pady=0,
                         **kwargs) 
-        self.custom_cursor_text_variable = tk.StringVar()
         # this comment is to store service symbol "▯"
         self.font = kwargs['font']
         
         self.textvariable = kwargs["textvariable"]
         initial_text = kwargs["textvariable"].get()
-        self.custom_cursor_text_variable.set(
-                " " if initial_text == "" else initial_text[-1])
 
-        character_width = self.font.actual(option='size')-6
-        print(f"character width = {character_width}")
+        character_width = 14
         self.custom_cursor = Cursor(self,
-                             width=character_width,
-                             textvariable=self.custom_cursor_text_variable,
-                             font=self.font,
-                             fg="brown",
-                             relief=tk.RIDGE,
-                             highlightbackground="green",
-                             highlightthickness=1,
-                             takefocus=True)
-        self.custom_cursor.place(y=0, x=0, relheight=1)
+                                 width=character_width,
+                                 text="",
+                                 font=self.font,
+                                 bg="yellow",
+                                 fg="brown",
+                                 relief=tk.GROOVE,
+                                 highlightbackground="green",
+                                 highlightthickness=0,
+                                 takefocus=True)
+        self.custom_cursor.place(y=0, x=0, width=character_width, relheight=1)
+        self.bind_events()
+
+    def write(self, event):
+        if event.char != "" and self.custom_cursor.mode == CursorMode.INSERT:
+            symb_i = int(self.custom_cursor.place_info()['x']) // \
+                self.custom_cursor.width[CursorMode.COMMAND] 
+            text = self.textvariable.get()
+            self.textvariable.set(
+                 text[:symb_i] + event.char + text[symb_i:])
+            self.update()
+            self.custom_cursor.event_generate("<Right>")
+
+    def bind_events(self):
         self.custom_cursor.bind_events()
-        self.focus_set()
+        self.bind_movements()
+        self.bind_mode_switching_to_INSERT_or_writing()
+        self.bind_mode_switching_to_COMMAND()
+        self.bind_writing()
+        self.bind_symbol_deletion()
+        self.bind_mouse()
+
+    def bind_movements(self):
+        for event in ["<Left>", "<Right>", "<End>", "<Home>"]:
+            def handler(arg, event=event):
+                self.custom_cursor.focus_set()
+                self.event_generate(event)
+                self.focus_set()
+            self.bind(event, handler)
+        
+
+    def bind_mode_switching_to_INSERT_or_writing(self):
+        def change_mode_or_write(arg):
+            if self.custom_cursor.mode == CursorMode.COMMAND:
+                self.custom_cursor.mode = CursorMode.INSERT
+                self.custom_cursor.place_configure(
+                    width=self.custom_cursor.width[CursorMode.INSERT])
+                self.custom_cursor.configure(highlightthickness=1)
+            else:
+                self.write(arg)
+        self.bind("i", change_mode_or_write, add=True)
+
+    def bind_mode_switching_to_COMMAND(self):
+        def change_mode_to_COMMAND(arg):
+            if self.custom_cursor.mode == CursorMode.INSERT:
+                self.custom_cursor.mode = CursorMode.COMMAND
+                self.custom_cursor.place_configure(
+                    width=self.custom_cursor.width[CursorMode.COMMAND])
+                self.custom_cursor.configure(highlightthickness=0)
+                symb_i = int(self.custom_cursor.place_info()['x']) // \
+                    self.custom_cursor.width[CursorMode.COMMAND]
+                text = self.textvariable.get()
+                if symb_i < len(text):
+                    self.custom_cursor.configure(text=f"{text[symb_i]}")
+        self.bind("<Key-Escape>", change_mode_to_COMMAND)
+
+    def bind_writing(self):
+        self.bind("<Any-KeyPress>", self.write, add=True)
+
+    def bind_symbol_deletion(self):
+        def del_previous_symbol(arg):
+            if self.custom_cursor.mode == CursorMode.INSERT:
+                symb_i = int(self.custom_cursor.place_info()['x']) // \
+                    self.custom_cursor.width[CursorMode.COMMAND] 
+                if symb_i > 0:
+                    text = self.textvariable.get()
+                    self.textvariable.set(text[:symb_i-1]+text[symb_i:])
+                    self.custom_cursor.event_generate("<Left>")
+        def del_next_symbol(arg):
+            if self.custom_cursor.mode == CursorMode.INSERT:
+                symb_i = int(self.custom_cursor.place_info()['x']) // \
+                    self.custom_cursor.width[CursorMode.COMMAND] 
+                text = self.textvariable.get()
+                if symb_i < len(text):
+                    self.textvariable.set(text[:symb_i]+text[symb_i+1:])
+
+        self.bind("<BackSpace>", del_previous_symbol, add=False)
+        self.bind("<Delete>", del_next_symbol, add=False)
+
+    def bind_mouse(self):
+        def capture_focus(arg):
+            self.focus_set()
+
+        self.bind("<Button-1>", capture_focus, add=False)
     
 
 
@@ -147,6 +216,7 @@ class App(tk.Frame):
                             justify='left',
                             anchor='w')
         self.IL.grid(row=0, column=0, sticky="NEWS")
+        #self.IL.bind("<Any-KeyPress>", dump)
 
 
     def update(self):
@@ -159,5 +229,5 @@ def dump(*args, **kwargs):
     print(*args, **kwargs)
 
 
-app = App(title="Root window")
+app = App(title="VIMish text editor emulator")
 app.mainloop()
