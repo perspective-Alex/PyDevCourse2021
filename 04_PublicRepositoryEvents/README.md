@@ -1,4 +1,4 @@
-### tk.Entry imitation widget
+### tkinter.Entry imitation widget
 Run via the following:
 ```
 python LabelEdit.py

@@ -93,7 +93,8 @@ class InputLabel(tk.Label):
         self.textvariable = kwargs["textvariable"]
         initial_text = kwargs["textvariable"].get()
 
-        self.char_width = 14
+        # set pixel length of any char with such a font
+        self.char_width = self.font.measure('s')
         self.custom_cursor = Cursor(self,
                                     width=self.char_width,
                                     text="",
